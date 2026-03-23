@@ -1,0 +1,11 @@
+build/
+
+.vscode/
+
+debug.jdebug.user
+debug.jdebug
+.mxproject
+
+Firmware/app
+Firmware/bsp/stm32g431/bsp_hall.c 
+Firmware/bsp/stm32g431/bsp_hall.h
