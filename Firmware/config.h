@@ -58,7 +58,7 @@
 #endif
 
 #ifndef CONFIG_THETA_OFFSET_RAD
-#define CONFIG_THETA_OFFSET_RAD 0.0f
+#define CONFIG_THETA_OFFSET_RAD 5.66f
 #endif
 
 /* current polarity (1 or -1) applied in motor sample path */

@@ -11,7 +11,8 @@ volatile float g_openloop_omega_e_dbg = 0.0f;
 volatile u8    g_openloop_use_runtime_dt_dbg = 1u;
 volatile float g_openloop_dt_dbg = 0.0f;
 
-volatile float g_openloop_vf_gain_dbg   = CONFIG_MOTOR_PARAMS_Flux; /* default: Ψ_f (Wb) */
+// volatile float g_openloop_vf_gain_dbg   = CONFIG_MOTOR_PARAMS_Flux; /* default: Ψ_f (Wb) */
+volatile float g_openloop_vf_gain_dbg   = 0.0f; /* manual Vq: gain=0, use offset only */
 volatile float g_openloop_vf_offset_dbg = 0.09f;  /* Rs*I_align: 0.3Ω × 0.3A */
 volatile float g_openloop_vq_limit_dbg  = 1.5f;   /* V hard cap       */
 

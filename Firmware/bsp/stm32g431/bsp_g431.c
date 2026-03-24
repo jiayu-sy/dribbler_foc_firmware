@@ -8,7 +8,7 @@
 #include "adc.h"
 #include <stdbool.h>
 
-volatile float g_vbus_voltage_dbg = 24.0f;
+volatile float g_vbus_voltage_dbg = 12.0f;
 
 void wdog_reload(void) {
 }
@@ -68,7 +68,8 @@ void bsp_mag_encoder_update(void) {
     if (delta >  (float)M_PI) delta -= M_2PI;
     if (delta < -(float)M_PI) delta += M_2PI;
 
-    s_elec_velocity   = delta * (float)CONFIG_FOC_PWM_FREQ;
+    float vel_raw     = delta * (float)CONFIG_FOC_PWM_FREQ;
+    s_elec_velocity   = s_elec_velocity + 0.05f * (vel_raw - s_elec_velocity);
     s_prev_elec_angle = angle_elec;
     s_elec_angle      = angle_elec;
 }
