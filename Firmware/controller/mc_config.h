@@ -4,7 +4,6 @@
 #include "foc.h"
 #include "lineramp.h"
 #include "types.h"
-
 typedef enum {
     pid_id,
     pid_iq,
@@ -36,20 +35,26 @@ typedef struct {
 } pid_params_t;
 
 typedef struct {	
-	s16 	curr_loop_bandwith;
-	s16     enc_pll_bandwith;
+	s16 curr_loop_bandwith;
+	s16 enc_pll_bandwith;
 	pid_params_t pid[pid_max_id];
 } contrl_params_t;
+
+typedef struct {
+	u8    hall_table[8];
+	float hall_interp_erpm;
+} hall_params_t;
 
 typedef struct {
 	float pwm_freq;
 	float ts;
 	float slow_ts;
-	u16   pwm_period;
-	u16   pwm_half_period;
+	u16 pwm_period;
+	u16 pwm_half_period;
 	motor_params_t motor_params;
 	board_params_t board_params;
 	contrl_params_t control_params;
+	hall_params_t hall_params;
 } mc_config_t;
 
 extern mc_config_t _mc_conf;

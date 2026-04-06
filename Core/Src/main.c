@@ -47,7 +47,11 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+volatile uint8_t g_dbg_motor_start = 0u;  
+volatile uint8_t g_dbg_daxis_lock = 0u;   
+volatile uint8_t g_dbg_pa = 0u;   
+volatile uint8_t g_dbg_pb = 0u;   
+volatile uint8_t g_dbg_pc = 0u;   
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -97,18 +101,54 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+
+#if 0
+  HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+  __HAL_TIM_MOE_DISABLE_UNCONDITIONALLY(&htim1);
+
+  GPIO_InitTypeDef g = {0};
+  g.Mode = GPIO_MODE_OUTPUT_PP;
+  g.Pull = GPIO_NOPULL;
+  g.Speed = GPIO_SPEED_FREQ_LOW;
+
+  g.Pin = GPIO_PIN_8;  /* Phase A */
+  HAL_GPIO_Init(GPIOA, &g);
+  g.Pin = GPIO_PIN_9;  /* Phase B */
+  HAL_GPIO_Init(GPIOA, &g);
+  g.Pin = GPIO_PIN_6;  /* Phase C */
+  HAL_GPIO_Init(GPIOC, &g);
+
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
+
+  while (1) {
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, g_dbg_pa ? GPIO_PIN_SET : GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, g_dbg_pb ? GPIO_PIN_SET : GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, g_dbg_pc ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  }
+#endif
+
   motor_init(motor(0));
-  motor_start(motor(0), CTRL_MODE_OPEN);
 
   /* USER CODE END 2 */
 
-  /* Infinite loop */
+  /* Infinite loop */ 
   /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    if (g_dbg_motor_start == 0u && motor(0)->b_start) {
+        motor_stop(motor(0));
+    }
+    if (g_dbg_motor_start == 1u && !motor(0)->b_start) {
+        motor_start(motor(0), CTRL_MODE_OPEN);
+    }
+    g_openloop_daxis_lock_dbg = (g_dbg_daxis_lock != 0u) ? 1u : 0u;
   }
   /* USER CODE END 3 */
 }

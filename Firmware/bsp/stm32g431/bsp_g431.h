@@ -13,34 +13,32 @@
 #define CONFIG_ADC_FULL_MAX         4095
 #define CONFIG_ADC_REF_VOLTAGE      3.3f
 
-/* adc offset tolerance, if exceed tolerance during startup calibration abort startup*/
 #define CONFIG_ADC_OFFSET_TOLERANCE 80         
-#define CONFIG_SIM_DISABLE_ADC_OFFSET 0         /* calibrate on HW */
+#define CONFIG_SIM_DISABLE_ADC_OFFSET 0        
 
 /* pwm */
-#define CONFIG_FOC_PWM_FREQ         10000
-#define CONFIG_FOC_PWM_Period       17000       /* = 2 * ARR */
-#define CONFIG_FOC_PWM_UPDATE_REPEAT 1          /* 1 update per PWM period */
+#define CONFIG_FOC_PWM_FREQ         40000
+#define CONFIG_FOC_PWM_Period       4250      
+#define CONFIG_FOC_PWM_UPDATE_REPEAT 1         
 #define CONFIG_SVM_MODULATION       0.92f
 
 /* cs */
 #define CONFIG_PHASE_CURRENT_PHASE_AB   0
 #define CONFIG_PHASE_CURRENT_PHASE_AC   0
-#define CONFIG_PHASE_CURRENT_PHASE_BC   1  /* rank1=PhB rank2=PhC PhA reconstructed */
+#define CONFIG_PHASE_CURRENT_PHASE_BC   1  
 #define CONFIG_PHASE_CURRENT_PHASE_ABC  0
 #ifdef CONFIG_CURRENT_POLARITY
 #undef CONFIG_CURRENT_POLARITY
 #endif
-#define CONFIG_CURRENT_POLARITY         -1.0f   /* inverted: INA240 shunt direction on this board */
+#define CONFIG_CURRENT_POLARITY     -1.0f   /* overrides */
 
-/* board bus, not used*/
-#define CONFIG_HW_MAX_DC_VOL        24       
+#define CONFIG_HW_MAX_DC_VOL        12
 #define CONFIG_HW_MIN_DC_VOL        10          
 #define CONFIG_HW_MAX_DC_CURRENT    10        
 #define CONFIG_HW_MAX_PHASE_CURR    10         
 
-#define CONFIG_USE_MAG_ENCODER      1      
-#define CONFIG_USE_HALL_ENCODER     0
+#define CONFIG_USE_MAG_ENCODER      0
+#define CONFIG_USE_HALL_ENCODER     1
 #define CONFIG_ENCODER_ABI          0
 #define CONFIG_ENCODER_ABS          0
 #define CONFIG_ENCODER_PWM          0
@@ -59,6 +57,9 @@ int32_t board_get_error(void);
 void  bsp_mag_encoder_update(void);
 float bsp_mag_encoder_get_elec_angle(void);
 float bsp_mag_encoder_get_velocity(void);
+void  bsp_hall_encoder_init(void);
+void  bsp_hall_encoder_irq_update(void);
+int   bsp_hall_encoder_get_val(void);
 
 extern volatile float g_vbus_voltage_dbg;
 

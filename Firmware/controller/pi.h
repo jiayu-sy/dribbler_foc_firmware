@@ -1,4 +1,3 @@
-/* 定义PI控制所需的结构体，helper函数 */
 #ifndef _PI_Contrller_H__
 #define _PI_Contrller_H__
 

@@ -5,6 +5,8 @@
 extern s16 g_phase_current_adc[2];
 extern s16 g_vbus_voltage_adc;
 
+volatile u8 g_openloop_daxis_lock_dbg = 0u;  /* 1 = Vd lock, 0 = Vq mode */
+
 motor_t g_motor[1];
 
 static void motor_update_samples(motor_t *motor) {
@@ -105,20 +107,24 @@ void mc_sched_irq_handler(motor_t *motor) {
     motor->mode_running = contrl_update_mode(controller(motor));
     if (motor->mode_running == CTRL_MODE_TORQUE) {
         contrl_set_target_torque(controller(motor), motor->torque_command);
-    } 
+    }
     else if (motor->mode_running == CTRL_MODE_VELOCITY) {
         contrl_set_target_velocity(controller(motor), motor->velocity_command);
-    } 
+    }
     else if (motor->mode_running == CTRL_MODE_CURRENT) {
         contrl_set_target_idq(controller(motor), motor->currdq_command[0], motor->currdq_command[1]);
-    } 
+    }
     else {
-        float abs_omega = (g_openloop_omega_e_dbg >= 0.0f)
-                          ? g_openloop_omega_e_dbg : -g_openloop_omega_e_dbg;
-        float vq = g_openloop_vf_gain_dbg * abs_omega + g_openloop_vf_offset_dbg;
-        if (vq > g_openloop_vq_limit_dbg) { vq = g_openloop_vq_limit_dbg; }
-        if (g_openloop_omega_e_dbg < 0.0f) { vq = -vq; }
-        contrl_set_target_vdq(controller(motor), 0.0f, vq);
+        if (g_openloop_daxis_lock_dbg) {
+            contrl_set_target_vdq(controller(motor), g_openloop_vf_offset_dbg, 0.0f);
+        } else {
+            float abs_omega = (g_openloop_omega_e_dbg >= 0.0f)
+                              ? g_openloop_omega_e_dbg : -g_openloop_omega_e_dbg;
+            float vq = g_openloop_vf_gain_dbg * abs_omega + g_openloop_vf_offset_dbg;
+            if (vq > g_openloop_vq_limit_dbg) { vq = g_openloop_vq_limit_dbg; }
+            if (g_openloop_omega_e_dbg < 0.0f) { vq = -vq; }
+            contrl_set_target_vdq(controller(motor), 0.0f, vq);
+        }
     }
     contrl_update_target(controller(motor));
 }

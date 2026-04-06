@@ -1,7 +1,7 @@
 #include "bsp/stm32g431/bsp_g431.h"
 #include "bsp/bsp_drivers.h"
 #include "config.h"
-#include "math/fast_math.h"
+#include "controller/utils_math.h"
 
 #include "main.h"
 #include "tim.h"
@@ -49,25 +49,25 @@ static float s_prev_elec_angle = 0.0f;
 static bool  s_enc_first       = true;
 
 void bsp_mag_encoder_update(void) {
+    __HAL_ADC_CLEAR_FLAG(&hadc1, ADC_FLAG_OVR);
     uint16_t raw = (uint16_t)HAL_ADC_GetValue(&hadc1);
-
     float angle_mech = ((float)raw / (float)CONFIG_ADC_FULL_MAX) * M_2PI;
-
     float angle_elec = angle_mech * (float)CONFIG_MOTOR_PARAMS_Poles;
-    while (angle_elec >= M_2PI) angle_elec -= M_2PI;
-    while (angle_elec < 0.0f)   angle_elec += M_2PI;
-
+    while (angle_elec >= M_2PI) {
+        angle_elec -= M_2PI;
+    }
+    while (angle_elec < 0.0f) {
+        angle_elec += M_2PI;
+    }
     if (s_enc_first) {
         s_enc_first       = false;
         s_prev_elec_angle = angle_elec;
         s_elec_angle      = angle_elec;
         return;
     }
-
     float delta = angle_elec - s_prev_elec_angle;
     if (delta >  (float)M_PI) delta -= M_2PI;
     if (delta < -(float)M_PI) delta += M_2PI;
-
     float vel_raw     = delta * (float)CONFIG_FOC_PWM_FREQ;
     s_elec_velocity   = s_elec_velocity + 0.05f * (vel_raw - s_elec_velocity);
     s_prev_elec_angle = angle_elec;
@@ -82,25 +82,57 @@ float bsp_mag_encoder_get_velocity(void) {
     return s_elec_velocity;
 }
 
+volatile int g_hall_val_dbg = 0;
+volatile int g_hall_idr_dbg = 0;    /* raw GPIOA IDR low 3 bits */
+volatile int g_hall_val_min = 0xFF; 
+
+void bsp_hall_encoder_irq_update(void) {
+    int idr = (int)(GPIOA->IDR & 0x7u);
+    g_hall_idr_dbg = idr;
+
+    int hall = 0;
+    if (HAL_GPIO_ReadPin(HALL_A_GPIO_Port, HALL_A_Pin) == GPIO_PIN_SET) {
+        hall |= 0x4;
+    }
+    if (HAL_GPIO_ReadPin(HALL_B_GPIO_Port, HALL_B_Pin) == GPIO_PIN_SET) {
+        hall |= 0x2;
+    }
+    if (HAL_GPIO_ReadPin(HALL_C_GPIO_Port, HALL_C_Pin) == GPIO_PIN_SET) {
+        hall |= 0x1;
+    }
+
+    g_hall_val_dbg = hall;
+    if (hall < g_hall_val_min) g_hall_val_min = hall;
+}
+
+void bsp_hall_encoder_init(void) {
+    bsp_hall_encoder_irq_update();
+}
+
+int bsp_hall_encoder_get_val(void) {
+    return g_hall_val_dbg;
+}
+
 static bool s_tim3_pwm_started = false;
 
 static inline void tim3_sync_start_on_tim1_update(void) {
-    MODIFY_REG(TIM3->SMCR, TIM_SMCR_SMS | TIM_SMCR_TS, 0);
+    MODIFY_REG(TIM3->SMCR, TIM_SMCR_SMS | TIM_SMCR_TS,
+               TIM_SLAVEMODE_TRIGGER | TIM_TS_ITR7);
     __HAL_TIM_DISABLE(&htim3);
 
-    if ((TIM1->CR1 & TIM_CR1_DIR) != 0U) {
-        SET_BIT(TIM3->CR1, TIM_CR1_DIR);
-    } else {
-        CLEAR_BIT(TIM3->CR1, TIM_CR1_DIR);
-    }
-    TIM3->CNT = TIM1->CNT;
+    TIM3->CNT = 0U;
+    __HAL_TIM_CLEAR_FLAG(&htim3, TIM_FLAG_UPDATE);
     __HAL_TIM_ENABLE(&htim3);
+
+    TIM1->CNT = 0U;
+    TIM1->EGR = TIM_EGR_UG;
 }
 
 void pwm_timer_init(uint32_t half_period) {
     htim1.Instance->ARR = half_period;
     htim3.Instance->ARR = half_period;
-    MODIFY_REG(TIM3->SMCR, TIM_SMCR_SMS | TIM_SMCR_TS, 0);
+    MODIFY_REG(TIM3->SMCR, TIM_SMCR_SMS | TIM_SMCR_TS,
+               TIM_SLAVEMODE_TRIGGER | TIM_TS_ITR7);
 
     uint16_t mid = (uint16_t)(half_period / 2);
     TIM1->CCR1 = mid;

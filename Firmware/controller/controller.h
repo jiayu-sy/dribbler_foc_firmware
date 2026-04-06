@@ -36,7 +36,7 @@ typedef struct {
 
 } controller_t;
 
-extern volatile float g_theta_offset_dbg;
+extern volatile float g_mag_encoder_offset_dbg;
 extern volatile uint8_t g_openloop_use_encoder_dbg;
 extern volatile float g_openloop_theta_dbg;
 extern volatile float g_openloop_omega_e_dbg;
@@ -54,8 +54,8 @@ bool contrl_request_mode(controller_t *ctrl, u8 mode);
 u8   contrl_update_mode(controller_t *ctrl);
 
 static inline bool contrl_start(controller_t *ctrl, u8 mode) {
-    if (contrl_enable(ctrl, true)) { // i.e. b_start set to enable
-        return contrl_request_mode(ctrl, mode); // request mode
+    if (contrl_enable(ctrl, true)) { 
+        return contrl_request_mode(ctrl, mode); 
     }
     return false;
 }

@@ -1,7 +1,7 @@
-#ifndef _FAST_MATH_H__
-#define _FAST_MATH_H__
+#ifndef _UTILS_MATH_H__
+#define _UTILS_MATH_H__
+
 #include "controller/types.h"
-#include "controller/utils.h"
 
 #undef M_PI
 #define M_PI (3.14159265f)
@@ -61,6 +61,18 @@ static inline void fast_sin_cos_f(float angle, float *s, float *c){
 #define w_rads_2_hz(v) ((v) / M_2PI)
 #define lpf_param(hz, ts) (hz_2_w_rads(hz) * ts)
 
+#define rads_2_erpm(v) ((v) * 30.0f / M_PI)
+#define erpm_2_rad(v) ((v) * M_PI / 30.0f)
+
+#define _min(a,b) ((a)>(b)?(b):(a))
+#define _max(x, y) ((x)>(y)?(x):(y))
+#define _abs(x) ((x)>0?(x):-(x))
+
+static inline void utils_norm_angle_rad(float *angle) {
+    while (*angle < -M_PI) { *angle += M_2PI; }
+    while (*angle >= M_PI) { *angle -= M_2PI; }
+}
+
 static inline void clark(float A, float B, float C, float *pAlpha, float *pBeta){
 	*pAlpha = A;
 	*pBeta = ONE_BY_SQRT3 * (B - C);
@@ -86,11 +98,11 @@ static inline void park_inv(float id, float iq, float s, float c, float *pAlpha,
 
 static inline float rads_angle_diff(float angle1, float angle2) {
 	float diff = angle1 - angle2;
-	if (diff > M_PI) {
-		return diff - M_2PI;
+	while (diff > M_PI) {
+		diff -= M_2PI;
 	}
-	if (diff < -M_PI) {
-		return diff + M_2PI;
+	while (diff < -M_PI) {
+        diff += M_2PI;
 	}
 	return diff;
 }
@@ -195,5 +207,4 @@ static inline float fast_atan2_f(float y, float x) {
     return r;
 }
 
-
-#endif /* _FAST_MATH_H__ */
+#endif /* _UTILS_MATH_H__ */

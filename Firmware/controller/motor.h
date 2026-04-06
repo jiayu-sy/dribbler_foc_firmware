@@ -4,10 +4,8 @@
 #include "types.h"
 #include "controller.h"
 #include "hw_samples.h"
+#include "utils_math.h"
 #include "bsp/bsp.h"
-#if CONFIG_USE_HALL_ENCODER
-#  include "bsp/stm32g431/bsp_hall.h"
-#endif
 
 #define PLOT_MAX_IDS 4
 
@@ -22,9 +20,7 @@ typedef struct {
 
     hw_samples_t samples;
     controller_t controller;
-#if CONFIG_USE_HALL_ENCODER
-    hall_t hall;
-#endif
+    hall_state_t hall;
 } motor_t;
 
 void motor_init(motor_t *motor);
@@ -36,6 +32,7 @@ void timer_up_irq_handler(motor_t *motor);
 void mc_sched_irq_handler(motor_t *motor);
 
 extern motor_t g_motor[1];
+extern volatile u8 g_openloop_daxis_lock_dbg;
 
 static inline motor_t *motor(int index) {
     return &g_motor[index];
@@ -67,40 +64,48 @@ static inline void motor_set_target_idq(motor_t *motor, float id, float iq) {
 static inline void motor_init_encoder(motor_t *motor) {
     (void)motor;
 #if (CONFIG_USE_HALL_ENCODER)
-    hall_dwt_init();           /* enable DWT cycle counter for velocity timing */
-    motor->hall.last_state = 0;
-    motor->hall.valid      = false;
+    bsp_hall_encoder_init();
+    foc_hall_init(&motor->hall);
 #elif (CONFIG_USE_MAG_ENCODER)
 #endif
 }
 
 static inline void motor_update_encoder(motor_t *motor) {
-    (void)motor;
 #if (CONFIG_USE_HALL_ENCODER)
-    hall_check_stall(&motor->hall);   /* zero velocity on stall, called at slow rate */
+    float ts = controller(motor)->foc.ts;
+    int hall_val = bsp_hall_encoder_get_val();
+    foc_hall(ts, &motor->hall, hall_val);
+    float delta = rads_angle_diff(motor->hall.ang_est_limited_rad,
+                                  motor->hall.ang_est_prev_rad);
+    float vel_raw = delta / ts;
+    motor->hall.vel_est_filtered_rads += 0.05f * (vel_raw - motor->hall.vel_est_filtered_rads);
+    motor->hall.ang_est_prev_rad = motor->hall.ang_est_limited_rad;
 #elif (CONFIG_USE_MAG_ENCODER)
-    bsp_mag_encoder_update();         /* latch ADC1 + compute velocity, called each FOC cycle */
+    (void)motor;
+    bsp_mag_encoder_update();
 #endif
 }
 
 static inline float motor_get_encoder_velocity(motor_t *motor) {
-    (void)motor;
 #if (CONFIG_USE_HALL_ENCODER)
-    return hall_get_velocity(&motor->hall);
+    return motor->hall.vel_est_filtered_rads;
 #elif (CONFIG_USE_MAG_ENCODER)
+    (void)motor;
     return bsp_mag_encoder_get_velocity();
 #else
+    (void)motor;
     return sim_encoder_get_velocity();
 #endif
 }
 
 static inline float motor_get_encoder_angle(motor_t *motor) {
-    (void)motor;
 #if (CONFIG_USE_HALL_ENCODER)
-    return hall_get_elec_angle(&motor->hall);
+    return motor->hall.ang_est_limited_rad;
 #elif (CONFIG_USE_MAG_ENCODER)
+    (void)motor;
     return bsp_mag_encoder_get_elec_angle();
 #else
+    (void)motor;
     return sim_encoder_get_angle();
 #endif
 }

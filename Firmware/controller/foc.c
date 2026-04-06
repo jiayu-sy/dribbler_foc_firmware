@@ -1,10 +1,10 @@
 /* Algorithm layer with core computational blocks */
 #include "foc.h"
 #include "pi.h"
-#include "math/fast_math.h"
 #include "bsp/bsp.h"
 #include "mc_config.h"
 #include "config.h"
+#include "utils_math.h"
 
 #define SECTOR_1  0u
 #define SECTOR_2  1u
@@ -23,7 +23,7 @@ u8 svpwm_get_duty(float alpha, float beta, float *duty) {
 	}
 
 	uint8_t sector = 0xFF;
-	float   tA = 0.5f, tB = 0.5f, tC = 0.5f;  /* defensive init */
+	float   tA = 0.5f, tB = 0.5f, tC = 0.5f;
 	float   X, Y, Z;
 
 	if (beta >= 0) {
@@ -173,7 +173,6 @@ u8 svpwm_get_duty(float alpha, float beta, float *duty) {
 void foc_init(foc_t *foc) {
     pi_reset(&foc->pi_con_id, 0);
     pi_reset(&foc->pi_con_iq, 0);
-
     foc->e_velocity_filted = 0;
     foc->id_set = 0;
     foc->iq_set = 0;
@@ -181,19 +180,26 @@ void foc_init(foc_t *foc) {
     foc->vq_set = 0;
 }
 
+void foc_hall_init(hall_state_t *hall) {
+	hall->ang_code_prev = -1;
+	hall->ang_est_rad = 0.0f;
+	hall->ang_est_limited_rad = 0.0f;
+	hall->ang_est_prev_rad = 0.0f;
+	hall->vel_est_filtered_rads = 0.0f;
+	hall->dt_last = 1.0f;  // safe non-zero initial value
+	hall->dt_now = 0.0f;
+}
+
 void foc_update_svpwm(foc_t *foc) {
     float s = sinf(foc->theta_e);
     float c = cosf(foc->theta_e);
-
     if (foc->vdc <= 0.0f) {
         foc->duty_norm[0] = 0;
         foc->duty_norm[1] = 0;
         foc->duty_norm[2] = 0;
         return;
     }
-
     float max_mag = foc->vdc * (ONE_BY_SQRT3 * CONFIG_SVM_MODULATION);
-
     if (!foc->b_openloop) {
         float max_vd = max_mag;
         foc->pi_con_id.max = max_vd;
@@ -221,4 +227,91 @@ void foc_update_svpwm(foc_t *foc) {
     float vbeta_uni = foc->vbeta_out / foc->vdc;
 
     foc->sector = svpwm_get_duty(valpha_uni, vbeta_uni, &foc->duty_norm[0]);
+}
+
+float foc_hall(float dt, hall_state_t *hall, int hall_val) {
+	hall->dt_now += dt;
+
+	int ang_code = mc_conf()->hall_params.hall_table[hall_val];
+
+	if (ang_code < 201) {
+		float ang_sample_rad = ((float)ang_code / 200.0f) * M_2PI;
+		if (hall->ang_code_prev < 0) {
+			// Initial valid sample
+			hall->ang_code_prev = ang_code;
+			hall->ang_est_rad = ang_sample_rad;
+			hall->ang_est_limited_rad = ang_sample_rad;
+		}
+		// Transition made
+		else if (ang_code != hall->ang_code_prev) {
+			int diff = ang_code - hall->ang_code_prev;
+			if (diff > 100) {
+				diff -= 200;
+			} else if (diff < -100) {
+				diff += 200;
+			}
+
+			if (sign_f(diff) == sign_f(hall->dt_last)) {
+				if (diff > 0) {
+					hall->dt_last = hall->dt_now;
+				} else {
+					hall->dt_last = -hall->dt_now;
+				}
+			} else {
+				hall->dt_last = -hall->dt_last;
+			}
+			hall->dt_now = 0.0f;
+
+			// Middle of new and old angle
+			int ang_avg = hall->ang_code_prev + diff / 2;
+			if (ang_avg < 0) ang_avg += 200;
+			ang_avg %= 200;
+
+			hall->ang_est_rad = ((float)ang_avg / 200.0f) * M_2PI;
+		}
+
+		hall->ang_code_prev = ang_code;
+
+		// Speed estimate from hall timing
+		float speed_est_rads = 0.0f;
+		float speed_est_rpm_abs = 0.0f;
+		if (fabsf(hall->dt_last) > 1e-6f) {
+			speed_est_rads = (M_PI / 3.0f) / hall->dt_last;
+			speed_est_rpm_abs = fabsf(rads_2_erpm(speed_est_rads));
+		}
+
+		float rpm_threshold = rads_2_erpm((M_PI / 3.0f) / fmaxf(
+				fmaxf(fabsf(hall->dt_now), fabsf(hall->dt_last)), 1e-6f));
+
+		/* No Interpolation at low speed */
+		if (fabsf(rpm_threshold) < mc_conf()->hall_params.hall_interp_erpm) {
+			hall->ang_est_rad = ang_sample_rad;
+		} else {
+			// Interpolate
+			float diff = rads_angle_diff(hall->ang_est_rad, ang_sample_rad);
+			if (fabsf(diff) < (M_2PI / 12.0f) || sign_f(diff) != sign_f(speed_est_rads)) {
+				hall->ang_est_rad += speed_est_rads * dt;
+			} else {
+				hall->ang_est_rad -= diff * 0.01f;
+			}
+		}
+
+		norm_angle_rad(hall->ang_est_rad);
+
+		// Rate limiting
+		float angle_step = (fmaxf(speed_est_rpm_abs,
+				mc_conf()->hall_params.hall_interp_erpm) / 60.0f)
+				* M_2PI * dt * 1.5f;
+		float angle_diff = rads_angle_diff(hall->ang_est_rad,
+				hall->ang_est_limited_rad);
+
+		if (fabsf(angle_diff) < angle_step) {
+			hall->ang_est_limited_rad = hall->ang_est_rad;
+		} else {
+			hall->ang_est_limited_rad += angle_step * sign_f(angle_diff);
+		}
+		norm_angle_rad(hall->ang_est_limited_rad);
+	}
+
+	return hall->ang_est_limited_rad;
 }

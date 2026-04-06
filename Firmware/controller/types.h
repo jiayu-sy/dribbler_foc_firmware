@@ -31,18 +31,18 @@ typedef int32_t s32;
 typedef int64_t s64;
 
 typedef signed char	int8;
-typedef signed short 	int16;
-typedef signed int		int32;
-typedef unsigned char	uint8;
-typedef unsigned short	uint16;
-typedef unsigned int	uint32;
+typedef signed short int16;
+typedef signed int int32;
+typedef unsigned char uint8;
+typedef unsigned short uint16;
+typedef unsigned int uint32;
 
-#define MOT_DIR_NEGATIVE          ((int8_t)-1)
-#define MOT_DIR_POSITIVE          ((int8_t)1)
+#define MOT_DIR_NEGATIVE ((int8_t)-1)
+#define MOT_DIR_POSITIVE ((int8_t)1)
 
-#define ADC_PHASE_AB  1
-#define ADC_PHASE_BC  2
-#define ADC_PHASE_AC  3
+#define ADC_PHASE_AB 1
+#define ADC_PHASE_BC 2
+#define ADC_PHASE_AC 3
 
 #define MAX_S16 (0x7FFF)
 #define MAX_U16 (0xFFFF)

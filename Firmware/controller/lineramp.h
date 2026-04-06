@@ -1,6 +1,6 @@
 #ifndef _LINE_RAMP__
 #define _LINE_RAMP__
-#include "math/fast_math.h"
+#include "utils_math.h"
 #include "config.h"
 
 typedef struct {

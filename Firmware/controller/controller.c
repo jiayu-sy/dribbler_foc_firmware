@@ -1,20 +1,20 @@
 #include "controller.h"
 #include "mc_config.h"
 #include "config.h"
+#include "bsp/bsp.h"
 #include "stm32g4xx.h"
 
 /* debug vars for bring-up */
-volatile float g_theta_offset_dbg = CONFIG_THETA_OFFSET_RAD;
-volatile u8    g_openloop_use_encoder_dbg = 1u;
+volatile float g_mag_encoder_offset_dbg = CONFIG_MAG_ENCODER_OFFSET_RAD;  /* 5.66 for 2804+AS5600 */
+volatile u8    g_openloop_use_encoder_dbg = 0u;
 volatile float g_openloop_theta_dbg = 0.0f;
 volatile float g_openloop_omega_e_dbg = 0.0f;
 volatile u8    g_openloop_use_runtime_dt_dbg = 1u;
 volatile float g_openloop_dt_dbg = 0.0f;
 
-// volatile float g_openloop_vf_gain_dbg   = CONFIG_MOTOR_PARAMS_Flux; /* default: Ψ_f (Wb) */
-volatile float g_openloop_vf_gain_dbg   = 0.0f; /* manual Vq: gain=0, use offset only */
-volatile float g_openloop_vf_offset_dbg = 0.09f;  /* Rs*I_align: 0.3Ω × 0.3A */
-volatile float g_openloop_vq_limit_dbg  = 1.5f;   /* V hard cap       */
+volatile float g_openloop_vf_gain_dbg   = 0.0f; 
+volatile float g_openloop_vf_offset_dbg = 0.09f;  
+volatile float g_openloop_vq_limit_dbg  = 1.5f;   
 
 static float s_openloop_theta_e = 0.0f;
 static bool s_openloop_dwt_inited = false;
@@ -61,10 +61,7 @@ static inline float openloop_get_dt(float fallback_ts) {
     } else {
         s_openloop_dt_valid = true;
     }
-
     s_openloop_last_cyc = now_cyc;
-
-    /* Guard dt spikes so one delayed IRQ cannot jump angle dangerously. */
     dt = clamp_f(dt, 0.25f * fallback_ts, 4.0f * fallback_ts);
     g_openloop_dt_dbg = dt;
     return dt;
@@ -118,18 +115,18 @@ void contrl_get_phase_duty(controller_t *ctrl){
 #else
         foc->theta_e = ctrl->encoder_angle;
 #endif
-        s_openloop_theta_e = foc->theta_e;
         s_openloop_dt_valid = false;
         g_openloop_dt_dbg = foc->ts;
     }
     foc->theta_e = wrap_0_2pi(foc->theta_e);
-    foc->theta_e += g_theta_offset_dbg;
+#if CONFIG_USE_MAG_ENCODER
+    foc->theta_e += g_mag_encoder_offset_dbg;
     foc->theta_e = wrap_0_2pi(foc->theta_e);
+#endif
 
     clark(ctrl->phase_curr_A, ctrl->phase_curr_B, ctrl->phase_curr_C, &ctrl->curr_alpha, &ctrl->curr_beta);
     foc->theta_e_sin = sinf(foc->theta_e);
     foc->theta_e_cos = cosf(foc->theta_e);
-
     park(ctrl->curr_alpha, ctrl->curr_beta, foc->theta_e_sin, foc->theta_e_cos, &foc->id_mea, &foc->iq_mea);
 
     foc->b_openloop = (ctrl->mode_running == CTRL_MODE_OPEN);
@@ -185,6 +182,7 @@ bool contrl_enable(controller_t *ctrl, bool start) {
     ctrl->mode_running = CTRL_MODE_OPEN;
 
     foc_init(&ctrl->foc);
+    s_openloop_theta_e = 0.0f;
     s_openloop_dt_valid = false;
     g_openloop_dt_dbg = mc_conf()->ts;
 
