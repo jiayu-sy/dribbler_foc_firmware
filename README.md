@@ -1,1 +1,1 @@
-ioc file may be outdate don't use
+ioc file may be outdated don't use
